@@ -1,0 +1,15 @@
+[package]
+name = "voids"
+version = "0.1.0"
+authors = ["Joni Katajamäki <joni.katajamaki@wunderdog.fi>"]
+edition = "2018"
+
+[dependencies]
+cgmath = "0.17.0"
+wgpu = "0.2.1"
+shaderc = "0.3"
+err-derive = "0.1"
+gltf = "0.11"
+
+[features]
+default = ["wgpu/metal"]
