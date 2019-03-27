@@ -1,5 +1,7 @@
 #version 450
 
+// layout(location = 0) in mat4 model;
+
 layout(location = 0) out vec4 color;
 
 void main() {

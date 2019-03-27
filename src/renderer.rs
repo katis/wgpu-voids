@@ -1,7 +1,11 @@
 use crate::assets::Assets;
-use cgmath::Vector3;
+use cgmath::{Matrix4, Vector3};
+use crate::renderer::camera::Camera;
+
+mod camera;
 
 pub struct Renderer {
+    camera: Camera,
     vertex_buf: wgpu::Buffer,
     index_buf: wgpu::Buffer,
     index_count: usize,
@@ -37,7 +41,7 @@ impl Renderer {
                 wgpu::BindGroupLayoutBinding {
                     binding: 1,
                     visibility: wgpu::ShaderStageFlags::FRAGMENT,
-                    ty: wgpu::BindingType::SampledTexture,
+                    ty: wgpu::BindingType::UniformBuffer,
                 },
                 wgpu::BindGroupLayoutBinding {
                     binding: 2,
@@ -66,7 +70,18 @@ impl Renderer {
             compare_function: wgpu::CompareFunction::Always,
             border_color: wgpu::BorderColor::TransparentBlack,
         });
-        let mx_total = generate_matrix(sc_desc.width as f32 / sc_desc.height as f32);
+
+        let aspect_ratio = sc_desc.width as f32 / sc_desc.height as f32;
+        let camera = Camera::new(
+            cgmath::Deg(45.0),
+            aspect_ratio,
+            1.0,
+            10.0,
+            cgmath::Point3::new(1.5f32, -5.0, 3.0),
+            cgmath::Point3::new(0f32, 0.0, 0.0),
+        );
+
+        let mx_total = camera.projection_view();
         let mx_ref: &[f32; 16] = mx_total.as_ref();
         let uniform_buf = device
             .create_buffer_mapped(
@@ -154,6 +169,7 @@ impl Renderer {
 
         println!("Created renderer");
         Renderer {
+            camera,
             vertex_buf,
             index_buf,
             index_count: assets.cube.indices.len(),
@@ -164,7 +180,9 @@ impl Renderer {
     }
 
     pub fn resize(&mut self, sc_desc: &wgpu::SwapChainDescriptor, device: &mut wgpu::Device) {
-        let mx_total = generate_matrix(sc_desc.width as f32 / sc_desc.height as f32);
+        self.camera.set_aspect(sc_desc.width as f32 / sc_desc.height as f32);
+
+        let mx_total = self.camera.projection_view();
         let mx_ref: &[f32; 16] = mx_total.as_ref();
 
         let temp_buf = device
@@ -206,7 +224,7 @@ impl Renderer {
     }
 }
 
-fn generate_matrix(aspect_ratio: f32) -> cgmath::Matrix4<f32> {
+fn view_projection_matrix(aspect_ratio: f32) -> cgmath::Matrix4<f32> {
     let mx_projection = cgmath::perspective(cgmath::Deg(45f32), aspect_ratio, 1.0, 10.0);
     let mx_view = cgmath::Matrix4::look_at(
         cgmath::Point3::new(1.5f32, -5.0, 3.0),
