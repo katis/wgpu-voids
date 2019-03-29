@@ -1,11 +1,25 @@
 #version 450
 
+layout(location = 0) in vec3 fragNormal;
+layout(location = 1) in vec3 fragVert;
+
 layout(set = 0, binding = 1) uniform Locals {
+    mat4 view;
     mat3 normalView;
 };
+
+layout(set = 0, binding = 2) uniform Light {
+    vec3 position;
+    vec3 intensities; //a.k.a the color of the light
+} light;
 
 layout(location = 0) out vec4 color;
 
 void main() {
-    color = vec4(0.3, 0.5, 0.1, 0.0);
+    vec3 normal = normalize(normalView * fragNormal);
+    vec3 fragPosition = vec3(view * vec4(fragVert, 1));
+    vec3 surfaceToLight = light.position - fragPosition;
+    float brightness = clamp(dot(normal, surfaceToLight) / (length(surfaceToLight) * length(normal)), 0, 1);
+    vec4 surfaceColor = vec4(0.3, 0.4, 0.1, 0.0);
+    color = vec4(light.intensities * brightness, 1.0);
 }

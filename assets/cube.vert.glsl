@@ -8,9 +8,13 @@ layout(set = 0, binding = 0) uniform Locals {
 };
 
 layout(location = 0) out vec3 fragNormal;
+layout(location = 1) out vec3 fragVert;
 
 void main() {
     gl_Position = u_Transform * vec4(position, 1.0);
     // convert from -1,1 Z to 0,1
     gl_Position.z = 0.5 * (gl_Position.z + gl_Position.w);
+
+    fragNormal = normal;
+    fragVert = position;
 }

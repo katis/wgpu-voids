@@ -11,19 +11,35 @@ pub struct Renderer {
     vertex_buf: GpuBuffer,
     index_buf: GpuBuffer,
     bind_group: wgpu::BindGroup,
-    projection_view_uniform_buf: GpuBuffer,
+    projection_view: GpuBuffer,
     pipeline: wgpu::RenderPipeline,
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+struct Light {
+    position: Vector3<f32>,
+    intensities: Vector3<f32>,
 }
 
 impl Renderer {
     pub fn init(sc_desc: &wgpu::SwapChainDescriptor, device: &mut wgpu::Device, assets: &Assets) -> Renderer {
-        use std::mem;
-
         let mut init_encoder =
             device.create_command_encoder(&wgpu::CommandEncoderDescriptor { todo: 0 });
 
+        let light = Light {
+            position: Vector3::new(0.10, 20.0, 20.0),
+            intensities: Vector3::new(0.2, 0.2, 1.0),
+        };
+
         let vertex_buf =  GpuBuffer::new(device, wgpu::BufferUsageFlags::VERTEX, &assets.cube.vertices);
         let index_buf = GpuBuffer::new(device, wgpu::BufferUsageFlags::INDEX, &assets.cube.indices);
+
+        let light_buf = GpuBuffer::new(
+            device,
+            wgpu::BufferUsageFlags::UNIFORM | wgpu::BufferUsageFlags::TRANSFER_DST,
+            &[light],
+        );
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             bindings: &[
@@ -34,6 +50,11 @@ impl Renderer {
                 },
                 wgpu::BindGroupLayoutBinding {
                     binding: 1,
+                    visibility: wgpu::ShaderStageFlags::FRAGMENT,
+                    ty: wgpu::BindingType::UniformBuffer,
+                },
+                wgpu::BindGroupLayoutBinding {
+                    binding: 2,
                     visibility: wgpu::ShaderStageFlags::FRAGMENT,
                     ty: wgpu::BindingType::UniformBuffer,
                 },
@@ -76,45 +97,27 @@ impl Renderer {
             cgmath::Point3::new(0f32, 0.0, 0.0),
         );
 
-        /*
-        let mx_total = camera.projection_view();
-        let mx_ref: &[f32; 16] = mx_total.as_ref();
-        let projection_view_uniform_buf = device
-            .create_buffer_mapped(
-                16,
-                wgpu::BufferUsageFlags::UNIFORM | wgpu::BufferUsageFlags::TRANSFER_DST,
-            )
-            .fill_from_slice(mx_ref);
-
-
-
-        let normal_view = camera.normal_view();
-        let normal_view_ref: &[f32; 9] = normal_view.as_ref();
-        let normal_buf = device
-            .create_buffer_mapped(
-                9,
-                wgpu::BufferUsageFlags::UNIFORM | wgpu::BufferUsageFlags::TRANSFER_DST,
-            )
-            .fill_from_slice(normal_view_ref);
-            */
-
-        let projection_view_uniform_buf = GpuBuffer::from_bytes(
+        let projection_view = GpuBuffer::from_bytes(
             device,
             wgpu::BufferUsageFlags::UNIFORM | wgpu::BufferUsageFlags::TRANSFER_DST,
             camera.projection_view().as_bytes()
         );
 
-        let normal_buf = GpuBuffer::from_bytes(
+        let normal_view_buf = GpuBuffer::from_byte_slices(
             device,
             wgpu::BufferUsageFlags::UNIFORM | wgpu::BufferUsageFlags::TRANSFER_DST,
-            camera.normal_view().as_bytes()
+            &[
+                camera.view().as_bytes(),
+                camera.normal_view().as_bytes(),
+            ]
         );
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &bind_group_layout,
             bindings: &[
-                projection_view_uniform_buf.binding(0),
-                normal_buf.binding(1),
+                projection_view.binding(0),
+                normal_view_buf.binding(1),
+                light_buf.binding(2),
                 /*
                 wgpu::Binding {
                     binding: 2,
@@ -166,7 +169,7 @@ impl Renderer {
             vertex_buf,
             index_buf,
             bind_group,
-            projection_view_uniform_buf,
+            projection_view,
             pipeline,
         }
     }
@@ -183,7 +186,7 @@ impl Renderer {
         let mut encoder =
             device.create_command_encoder(&wgpu::CommandEncoderDescriptor { todo: 0 });
 
-        temp_buf.copy_to_buffer(&mut encoder, &self.projection_view_uniform_buf);
+        temp_buf.copy_to_buffer(&mut encoder, &self.projection_view);
         device.get_queue().submit(&[encoder.finish()]);
     }
 
