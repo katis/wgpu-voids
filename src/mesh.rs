@@ -6,6 +6,29 @@ pub struct Vertex {
     normal: Vector3<f32>,
 }
 
+impl Vertex {
+    pub fn buffer_descriptor() -> wgpu::VertexBufferDescriptor<'static> {
+        use std::mem::size_of;
+
+        wgpu::VertexBufferDescriptor {
+            stride: size_of::<Vertex>() as u32,
+            step_mode: wgpu::InputStepMode::Vertex,
+            attributes: &[
+                wgpu::VertexAttributeDescriptor {
+                    attribute_index: 0,
+                    format: wgpu::VertexFormat::Float3,
+                    offset: 0,
+                },
+                wgpu::VertexAttributeDescriptor {
+                    attribute_index: 1,
+                    format: wgpu::VertexFormat::Float3,
+                    offset: size_of::<Vector3<f32>>() as u32,
+                },
+            ]
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Mesh {
     pub indices: Vec<u16>,
