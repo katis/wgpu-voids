@@ -1,4 +1,4 @@
-use cgmath::{Deg, Matrix4, Point3, Vector3};
+use cgmath::{Deg, Matrix4, Point3, Vector3, Matrix3, Matrix, SquareMatrix};
 
 pub struct Camera {
     fov_y: Deg<f32>,
@@ -42,6 +42,15 @@ impl Camera {
             self.target,
             -Vector3::unit_z(),
         )
+    }
+
+    pub fn normal_view(&self) -> Matrix3<f32> {
+        let view = self.view();
+        Matrix3::from_cols(
+            view.x.truncate(),
+            view.y.truncate(),
+            view.z.truncate(),
+        ).invert().unwrap().transpose()
     }
 
     pub fn translate(&mut self, movement: Vector3<f32>) {

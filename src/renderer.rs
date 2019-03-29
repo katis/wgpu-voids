@@ -1,6 +1,7 @@
 use crate::assets::Assets;
 use cgmath::{Matrix4, Vector3};
 use crate::renderer::camera::Camera;
+use crate::mesh::Vertex;
 
 mod camera;
 
@@ -21,7 +22,7 @@ impl Renderer {
         let mut init_encoder =
             device.create_command_encoder(&wgpu::CommandEncoderDescriptor { todo: 0 });
 
-        let vertex_size = mem::size_of::<Vector3<f32>>();
+        let vertex_size = mem::size_of::<Vertex>();
         let vertex_buf = device
             .create_buffer_mapped(assets.cube.vertices.len(), wgpu::BufferUsageFlags::VERTEX)
             .fill_from_slice(&assets.cube.vertices);
@@ -37,12 +38,12 @@ impl Renderer {
                     visibility: wgpu::ShaderStageFlags::VERTEX,
                     ty: wgpu::BindingType::UniformBuffer,
                 },
-                /* Not needed, no texture
                 wgpu::BindGroupLayoutBinding {
                     binding: 1,
                     visibility: wgpu::ShaderStageFlags::FRAGMENT,
                     ty: wgpu::BindingType::UniformBuffer,
                 },
+                /* Not needed, no texture
                 wgpu::BindGroupLayoutBinding {
                     binding: 2,
                     visibility: wgpu::ShaderStageFlags::FRAGMENT,
@@ -90,6 +91,15 @@ impl Renderer {
             )
             .fill_from_slice(mx_ref);
 
+        let normal_view = camera.normal_view();
+        let normal_view_ref: &[f32; 9] = normal_view.as_ref();
+        let normal_buf = device
+            .create_buffer_mapped(
+                9,
+                wgpu::BufferUsageFlags::UNIFORM | wgpu::BufferUsageFlags::TRANSFER_DST,
+            )
+            .fill_from_slice(normal_view_ref);
+
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &bind_group_layout,
             bindings: &[
@@ -100,11 +110,14 @@ impl Renderer {
                         range: 0..64,
                     },
                 },
-                /* no texture
                 wgpu::Binding {
                     binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&texture_view),
+                    resource: wgpu::BindingResource::Buffer {
+                        buffer: &normal_buf,
+                        range: 0..36,
+                    },
                 },
+                /*
                 wgpu::Binding {
                     binding: 2,
                     resource: wgpu::BindingResource::Sampler(&sampler),
@@ -151,13 +164,11 @@ impl Renderer {
                         format: wgpu::VertexFormat::Float3,
                         offset: 0,
                     },
-                    /*
                     wgpu::VertexAttributeDescriptor {
                         attribute_index: 1,
-                        format: wgpu::VertexFormat::Float2,
-                        offset: 4 * 4,
+                        format: wgpu::VertexFormat::Float3,
+                        offset: 3 * 4,
                     },
-                    */
                 ],
             }],
             sample_count: 1,
@@ -167,7 +178,6 @@ impl Renderer {
         let init_command_buf = init_encoder.finish();
         device.get_queue().submit(&[init_command_buf]);
 
-        println!("Created renderer");
         Renderer {
             camera,
             vertex_buf,
@@ -222,14 +232,4 @@ impl Renderer {
 
         device.get_queue().submit(&[encoder.finish()]);
     }
-}
-
-fn view_projection_matrix(aspect_ratio: f32) -> cgmath::Matrix4<f32> {
-    let mx_projection = cgmath::perspective(cgmath::Deg(45f32), aspect_ratio, 1.0, 10.0);
-    let mx_view = cgmath::Matrix4::look_at(
-        cgmath::Point3::new(1.5f32, -5.0, 3.0),
-        cgmath::Point3::new(0f32, 0.0, 0.0),
-        -cgmath::Vector3::unit_z(),
-    );
-    mx_projection * mx_view
 }

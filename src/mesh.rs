@@ -1,10 +1,15 @@
 use cgmath::Vector3;
 
+#[derive(Debug, Clone, Copy)]
+pub struct Vertex {
+    position: Vector3<f32>,
+    normal: Vector3<f32>,
+}
+
 #[derive(Debug)]
 pub struct Mesh {
     pub indices: Vec<u16>,
-    pub vertices: Vec<Vector3<f32>>,
-    pub normals: Vec<Vector3<f32>>,
+    pub vertices: Vec<Vertex>,
 }
 
 impl Mesh {
@@ -24,15 +29,19 @@ impl Mesh {
         let indices = bytes_to_u16(index_bytes);
 
         let vertex_bytes = attribute_bytes(&buffers, &mesh_doc, &primitive, Semantic::Positions)?;
-        let vertices = bytes_to_vector3(vertex_bytes);
+        let positions = bytes_to_vector3(vertex_bytes);
 
         let normal_bytes = attribute_bytes(&buffers, &mesh_doc, &primitive, Semantic::Normals)?;
         let normals = bytes_to_vector3(normal_bytes);
 
+        let vertices: Vec<Vertex> = positions.into_iter().zip(normals.into_iter()).map(|(&position, &normal)| Vertex {
+            position,
+            normal
+        }).collect();
+
         Ok(Mesh {
             indices: indices.to_vec(),
-            vertices: vertices.to_vec(),
-            normals: normals.to_vec(),
+            vertices,
         })
     }
 }

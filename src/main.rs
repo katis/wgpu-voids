@@ -9,6 +9,7 @@ mod game;
 mod renderer;
 mod shader;
 mod mesh;
+mod conversions;
 
 fn main() {
     let assets = Assets::load().unwrap();

@@ -1,6 +1,8 @@
 #version 450
 
-// layout(location = 0) in mat4 model;
+layout(set = 0, binding = 1) uniform Locals {
+    mat3 normalView;
+};
 
 layout(location = 0) out vec4 color;
 
