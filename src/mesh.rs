@@ -109,8 +109,7 @@ fn attribute_bytes<'a>(
     primitive: &gltf::Primitive,
     semantic: gltf::mesh::Semantic,
 ) -> Result<&'a [u8], MeshLoadError> {
-    let (_, doc) = primitive.attributes()
-        .find(|(semantic, _)| semantic == semantic)
+    let doc = primitive.get(&semantic)
         .ok_or_else(|| MeshLoadError::NoSemantic { mesh: mesh_name(mesh), semantic })?;
     Ok(access_bytes(buffers, &doc))
 }

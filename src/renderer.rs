@@ -28,7 +28,7 @@ impl Renderer {
             device.create_command_encoder(&wgpu::CommandEncoderDescriptor { todo: 0 });
 
         let light = Light {
-            position: Vector3::new(0.10, 20.0, 20.0),
+            position: Vector3::new(1.10, 3.0, 4.0),
             intensities: Vector3::new(0.2, 0.2, 1.0),
         };
 
