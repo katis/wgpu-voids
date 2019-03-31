@@ -12,6 +12,7 @@ pub struct Renderer {
     index_buf: GpuBuffer,
     bind_group: wgpu::BindGroup,
     projection_view: GpuBuffer,
+    normal_view: GpuBuffer,
     pipeline: wgpu::RenderPipeline,
 }
 
@@ -32,7 +33,7 @@ impl Renderer {
             intensities: Vector3::new(2.0, 2.0, 2.0),
         };
 
-        let vertex_buf =  GpuBuffer::new(device, wgpu::BufferUsageFlags::VERTEX, &assets.cube.vertices);
+        let vertex_buf = GpuBuffer::new(device, wgpu::BufferUsageFlags::VERTEX, &assets.cube.vertices);
         let index_buf = GpuBuffer::new(device, wgpu::BufferUsageFlags::INDEX, &assets.cube.indices);
 
         let light_buf = GpuBuffer::new(
@@ -126,7 +127,7 @@ impl Renderer {
         });
 
         let aspect_ratio = sc_desc.width as f32 / sc_desc.height as f32;
-        let camera = Camera::new(
+        let mut camera = Camera::new(
             cgmath::Deg(45.0),
             aspect_ratio,
             1.0,
@@ -138,7 +139,7 @@ impl Renderer {
         let projection_view = GpuBuffer::from_bytes(
             device,
             wgpu::BufferUsageFlags::UNIFORM | wgpu::BufferUsageFlags::TRANSFER_DST,
-            camera.projection_view().as_bytes()
+            camera.projection_view().as_bytes(),
         );
 
         let normal_view_buf = GpuBuffer::from_byte_slices(
@@ -147,7 +148,7 @@ impl Renderer {
             &[
                 camera.view().as_bytes(),
                 camera.normal_view().as_bytes(),
-            ]
+            ],
         );
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -210,23 +211,42 @@ impl Renderer {
             index_buf,
             bind_group,
             projection_view,
+            normal_view: normal_view_buf,
             pipeline,
         }
     }
 
     pub fn resize(&mut self, sc_desc: &wgpu::SwapChainDescriptor, device: &mut wgpu::Device) {
         self.camera.set_aspect(sc_desc.width as f32 / sc_desc.height as f32);
+        self.update_camera(device);
+    }
 
-        let temp_buf = GpuBuffer::from_bytes(
+    pub fn move_camera(&mut self, device: &mut wgpu::Device, movement: Vector3<f32>) {
+        self.camera.translate(movement);
+        self.update_camera(device);
+    }
+
+    fn update_camera(&mut self, device: &mut wgpu::Device) {
+         let projection_view_src = GpuBuffer::from_bytes(
             device,
             wgpu::BufferUsageFlags::TRANSFER_SRC,
-            self.camera.projection_view().as_bytes()
+            self.camera.projection_view().as_bytes(),
+        );
+
+        let normal_view_src = GpuBuffer::from_byte_slices(
+            device,
+            wgpu::BufferUsageFlags::TRANSFER_SRC,
+            &[
+                self.camera.view().as_bytes(),
+                self.camera.normal_view().as_bytes(),
+            ],
         );
 
         let mut encoder =
             device.create_command_encoder(&wgpu::CommandEncoderDescriptor { todo: 0 });
 
-        temp_buf.copy_to_buffer(&mut encoder, &self.projection_view);
+        projection_view_src.copy_to_buffer(&mut encoder, &self.projection_view);
+        normal_view_src.copy_to_buffer(&mut encoder, &self.normal_view);
         device.get_queue().submit(&[encoder.finish()]);
     }
 
