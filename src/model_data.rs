@@ -38,7 +38,7 @@ impl Vertex {
 }
 
 #[derive(Debug)]
-pub struct Mesh {
+pub struct ModelData {
     pub indices: Vec<u16>,
     pub vertices: Vec<Vertex>,
     pub texture: Texture,
@@ -61,9 +61,9 @@ impl Texture {
     }
 }
 
-impl Mesh {
-    pub fn load(path: &str) -> Result<Mesh, MeshLoadError> {
-        use self::MeshLoadError::*;
+impl ModelData {
+    pub fn load(path: &str) -> Result<ModelData, ModelLoadError> {
+        use self::ModelLoadError::*;
         use gltf::mesh::Semantic;
 
         let (document, buffers, _) = gltf::import(path)?;
@@ -95,8 +95,7 @@ impl Mesh {
         };
 
         let tex_coord_bytes = attribute_bytes(&buffers, &mesh_doc, &primitive, Semantic::TexCoords(base_color_texture.tex_coord()))?;
-        let mut tex_coords: Vec<_> = bytes_to_point2(tex_coord_bytes).iter().map(|p| Point2::new(p.x, p.y)).collect();
-        //let mut tex_coords = bytes_to_point2(tex_coord_bytes);
+        let tex_coords = bytes_to_point2(tex_coord_bytes);
 
         let indices_doc = primitive.indices().ok_or_else(|| NoIndices { mesh: mesh_name(&mesh_doc) })?;
         let index_bytes = access_bytes(&buffers, &indices_doc.view());
@@ -105,19 +104,17 @@ impl Mesh {
         let position_bytes = attribute_bytes(&buffers, &mesh_doc, &primitive, Semantic::Positions)?;
         let positions = bytes_to_vector3(position_bytes);
 
-        println!("POSITIONS: {:?}", positions);
-
         let normal_bytes = attribute_bytes(&buffers, &mesh_doc, &primitive, Semantic::Normals)?;
         let normals = bytes_to_vector3(normal_bytes);
 
         let vertices: Vec<Vertex> = izip!(positions.into_iter(), normals.into_iter(), tex_coords.into_iter())
-            .map(|(&position, &normal, tex_coord)| Vertex {
+            .map(|(&position, &normal, &tex_coord)| Vertex {
                 position,
                 normal,
                 tex_coord,
             }).collect();
 
-        Ok(Mesh {
+        Ok(ModelData {
             indices: indices.to_vec(),
             vertices,
             texture,
@@ -126,7 +123,7 @@ impl Mesh {
 }
 
 #[derive(Debug, Error)]
-pub enum MeshLoadError {
+pub enum ModelLoadError {
     #[error(display = "could not import glTf file")]
     InvalidImport(#[error(cause)] gltf::Error),
     #[error(display = "file {} has no meshes", path)]
@@ -159,15 +156,15 @@ pub enum MeshLoadError {
     ImageDecodeFailed(#[error(cause)] png::DecodingError),
 }
 
-impl From<gltf::Error> for MeshLoadError {
+impl From<gltf::Error> for ModelLoadError {
     fn from(err: gltf::Error) -> Self {
-        MeshLoadError::InvalidImport(err)
+        ModelLoadError::InvalidImport(err)
     }
 }
 
-impl From<png::DecodingError> for MeshLoadError {
+impl From<png::DecodingError> for ModelLoadError {
     fn from(err: png::DecodingError) -> Self {
-        MeshLoadError::ImageDecodeFailed(err)
+        ModelLoadError::ImageDecodeFailed(err)
     }
 }
 
@@ -180,9 +177,9 @@ fn attribute_bytes<'a>(
     mesh: &gltf::mesh::Mesh,
     primitive: &gltf::Primitive,
     semantic: gltf::mesh::Semantic,
-) -> Result<&'a [u8], MeshLoadError> {
+) -> Result<&'a [u8], ModelLoadError> {
     let doc = primitive.get(&semantic)
-        .ok_or_else(|| MeshLoadError::NoSemantic { mesh: mesh_name(mesh), semantic })?;
+        .ok_or_else(|| ModelLoadError::NoSemantic { mesh: mesh_name(mesh), semantic })?;
     Ok(access_bytes(buffers, &doc.view()))
 }
 

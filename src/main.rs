@@ -3,14 +3,14 @@ extern crate err_derive;
 #[macro_use]
 extern crate itertools;
 
-use mesh::Mesh;
+use model_data::ModelData;
 use crate::assets::Assets;
 
 mod assets;
 mod game;
 mod renderer;
 mod shader;
-mod mesh;
+mod model_data;
 mod conversions;
 
 fn main() {

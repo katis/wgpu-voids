@@ -1,7 +1,7 @@
 use crate::assets::Assets;
 use cgmath::{Matrix4, Vector3};
 use crate::renderer::camera::Camera;
-use crate::mesh::Vertex;
+use crate::model_data::Vertex;
 use crate::conversions::{GpuBuffer, AsBytes};
 
 mod camera;
@@ -33,8 +33,10 @@ impl Renderer {
             intensities: Vector3::new(2.0, 2.0, 2.0),
         };
 
-        let vertex_buf = GpuBuffer::new(device, wgpu::BufferUsageFlags::VERTEX, &assets.cube.vertices);
-        let index_buf = GpuBuffer::new(device, wgpu::BufferUsageFlags::INDEX, &assets.cube.indices);
+        let cube = assets.models.find("cube").unwrap();
+
+        let vertex_buf = GpuBuffer::new(device, wgpu::BufferUsageFlags::VERTEX, &cube.vertices);
+        let index_buf = GpuBuffer::new(device, wgpu::BufferUsageFlags::INDEX, &cube.indices);
 
         let light_buf = GpuBuffer::new(
             device,
@@ -78,7 +80,7 @@ impl Renderer {
 
         // Create texture
 
-        let texture_extent = assets.cube.texture.extent();
+        let texture_extent = cube.texture.extent();
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             size: texture_extent,
             array_size: 1,
@@ -88,15 +90,15 @@ impl Renderer {
         });
         let texture_view = texture.create_default_view();
         let temp_buf = device
-            .create_buffer_mapped(assets.cube.texture.pixels.len(), wgpu::BufferUsageFlags::TRANSFER_SRC)
-            .fill_from_slice(&assets.cube.texture.pixels);
+            .create_buffer_mapped(cube.texture.pixels.len(), wgpu::BufferUsageFlags::TRANSFER_SRC)
+            .fill_from_slice(&cube.texture.pixels);
 
         init_encoder.copy_buffer_to_texture(
             wgpu::BufferCopyView {
                 buffer: &temp_buf,
                 offset: 0,
-                row_pitch: 4 * assets.cube.texture.width,
-                image_height: assets.cube.texture.height,
+                row_pitch: 4 * cube.texture.width,
+                image_height: cube.texture.height,
             },
             wgpu::TextureCopyView {
                 texture: &texture,
@@ -168,8 +170,11 @@ impl Renderer {
             ],
         });
 
-        let vs_module = device.create_shader_module(&assets.vertex_shader);
-        let fs_module = device.create_shader_module(&assets.fragment_shader);
+        let vertex_shader = assets.shaders.find("vertex").unwrap();
+        let fragment_shader = assets.shaders.find("fragment").unwrap();
+
+        let vs_module = device.create_shader_module(vertex_shader);
+        let fs_module = device.create_shader_module(fragment_shader);
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             layout: &pipeline_layout,
