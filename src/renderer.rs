@@ -28,8 +28,8 @@ impl Renderer {
             device.create_command_encoder(&wgpu::CommandEncoderDescriptor { todo: 0 });
 
         let light = Light {
-            position: Vector3::new(1.10, 3.0, 4.0),
-            intensities: Vector3::new(0.2, 0.2, 1.0),
+            position: Vector3::new(10.0, 0.0, 3.0),
+            intensities: Vector3::new(2.0, 2.0, 2.0),
         };
 
         let vertex_buf =  GpuBuffer::new(device, wgpu::BufferUsageFlags::VERTEX, &assets.cube.vertices);
@@ -58,19 +58,57 @@ impl Renderer {
                     visibility: wgpu::ShaderStageFlags::FRAGMENT,
                     ty: wgpu::BindingType::UniformBuffer,
                 },
-                /* Not needed, no texture
                 wgpu::BindGroupLayoutBinding {
-                    binding: 2,
+                    binding: 3,
+                    visibility: wgpu::ShaderStageFlags::FRAGMENT,
+                    ty: wgpu::BindingType::SampledTexture,
+                },
+                wgpu::BindGroupLayoutBinding {
+                    binding: 4,
                     visibility: wgpu::ShaderStageFlags::FRAGMENT,
                     ty: wgpu::BindingType::Sampler,
                 },
-                */
             ],
         });
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             bind_group_layouts: &[&bind_group_layout],
         });
+
+        // Create texture
+
+        let texture_extent = assets.cube.texture.extent();
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            size: texture_extent,
+            array_size: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsageFlags::SAMPLED | wgpu::TextureUsageFlags::TRANSFER_DST,
+        });
+        let texture_view = texture.create_default_view();
+        let temp_buf = device
+            .create_buffer_mapped(assets.cube.texture.pixels.len(), wgpu::BufferUsageFlags::TRANSFER_SRC)
+            .fill_from_slice(&assets.cube.texture.pixels);
+
+        init_encoder.copy_buffer_to_texture(
+            wgpu::BufferCopyView {
+                buffer: &temp_buf,
+                offset: 0,
+                row_pitch: 4 * assets.cube.texture.width,
+                image_height: assets.cube.texture.height,
+            },
+            wgpu::TextureCopyView {
+                texture: &texture,
+                level: 0,
+                slice: 0,
+                origin: wgpu::Origin3d {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+            },
+            texture_extent,
+        );
 
         // Create other resources
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
@@ -118,12 +156,14 @@ impl Renderer {
                 projection_view.binding(0),
                 normal_view_buf.binding(1),
                 light_buf.binding(2),
-                /*
                 wgpu::Binding {
-                    binding: 2,
+                    binding: 3,
+                    resource: wgpu::BindingResource::TextureView(&texture_view),
+                },
+                wgpu::Binding {
+                    binding: 4,
                     resource: wgpu::BindingResource::Sampler(&sampler),
                 },
-                */
             ],
         });
 

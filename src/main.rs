@@ -1,5 +1,7 @@
 #[macro_use]
 extern crate err_derive;
+#[macro_use]
+extern crate itertools;
 
 use mesh::Mesh;
 use crate::assets::Assets;

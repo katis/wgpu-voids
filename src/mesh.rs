@@ -1,9 +1,12 @@
-use cgmath::Vector3;
+use cgmath::{Vector3, Point2};
+use itertools::izip;
 
+#[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct Vertex {
     position: Vector3<f32>,
     normal: Vector3<f32>,
+    tex_coord: Point2<f32>,
 }
 
 impl Vertex {
@@ -24,7 +27,12 @@ impl Vertex {
                     format: wgpu::VertexFormat::Float3,
                     offset: size_of::<Vector3<f32>>() as u32,
                 },
-            ]
+                wgpu::VertexAttributeDescriptor {
+                    attribute_index: 2,
+                    format: wgpu::VertexFormat::Float2,
+                    offset: (size_of::<Vector3<f32>>() * 2) as u32,
+                },
+            ],
         }
     }
 }
@@ -33,6 +41,24 @@ impl Vertex {
 pub struct Mesh {
     pub indices: Vec<u16>,
     pub vertices: Vec<Vertex>,
+    pub texture: Texture,
+}
+
+#[derive(Debug)]
+pub struct Texture {
+    pub pixels: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
+}
+
+impl Texture {
+    pub fn extent(&self) -> wgpu::Extent3d {
+        wgpu::Extent3d {
+            width: self.width,
+            height: self.height,
+            depth: 1,
+        }
+    }
 }
 
 impl Mesh {
@@ -47,24 +73,54 @@ impl Mesh {
             mesh: mesh_name(&mesh_doc),
             path: path.into(),
         })?;
+
+        let base_color_texture = primitive.material()
+            .pbr_metallic_roughness()
+            .base_color_texture()
+            .ok_or_else(|| NoBaseColorTexture {
+                mesh: mesh_name(&mesh_doc),
+            })?;
+
+        let texture: Texture = match base_color_texture.texture().source().source() {
+            gltf::image::Source::View { view, mime_type } => {
+                if mime_type != "image/png" {
+                    return Err(UnsupportedImageFormat { mime_type: mime_type.to_string() });
+                }
+                let bytes = access_bytes(&buffers, &view);
+                load_png(bytes)?
+            }
+            gltf::image::Source::Uri { uri, mime_type } => {
+                unimplemented!("Can't load external files: {}", uri);
+            }
+        };
+
+        let tex_coord_bytes = attribute_bytes(&buffers, &mesh_doc, &primitive, Semantic::TexCoords(base_color_texture.tex_coord()))?;
+        let mut tex_coords: Vec<_> = bytes_to_point2(tex_coord_bytes).iter().map(|p| Point2::new(p.x, p.y)).collect();
+        //let mut tex_coords = bytes_to_point2(tex_coord_bytes);
+
         let indices_doc = primitive.indices().ok_or_else(|| NoIndices { mesh: mesh_name(&mesh_doc) })?;
-        let index_bytes = access_bytes(&buffers, &indices_doc);
+        let index_bytes = access_bytes(&buffers, &indices_doc.view());
         let indices = bytes_to_u16(index_bytes);
 
-        let vertex_bytes = attribute_bytes(&buffers, &mesh_doc, &primitive, Semantic::Positions)?;
-        let positions = bytes_to_vector3(vertex_bytes);
+        let position_bytes = attribute_bytes(&buffers, &mesh_doc, &primitive, Semantic::Positions)?;
+        let positions = bytes_to_vector3(position_bytes);
+
+        println!("POSITIONS: {:?}", positions);
 
         let normal_bytes = attribute_bytes(&buffers, &mesh_doc, &primitive, Semantic::Normals)?;
         let normals = bytes_to_vector3(normal_bytes);
 
-        let vertices: Vec<Vertex> = positions.into_iter().zip(normals.into_iter()).map(|(&position, &normal)| Vertex {
-            position,
-            normal
-        }).collect();
+        let vertices: Vec<Vertex> = izip!(positions.into_iter(), normals.into_iter(), tex_coords.into_iter())
+            .map(|(&position, &normal, tex_coord)| Vertex {
+                position,
+                normal,
+                tex_coord,
+            }).collect();
 
         Ok(Mesh {
             indices: indices.to_vec(),
             vertices,
+            texture,
         })
     }
 }
@@ -91,11 +147,27 @@ pub enum MeshLoadError {
         mesh: String,
         semantic: gltf::mesh::Semantic,
     },
+    #[error(display = "mesh {} has no base color texture", mesh)]
+    NoBaseColorTexture {
+        mesh: String,
+    },
+    #[error(display = "unknown image format {}", mime_type)]
+    UnsupportedImageFormat {
+        mime_type: String,
+    },
+    #[error(display = "decoding image failed")]
+    ImageDecodeFailed(#[error(cause)] png::DecodingError),
 }
 
 impl From<gltf::Error> for MeshLoadError {
     fn from(err: gltf::Error) -> Self {
         MeshLoadError::InvalidImport(err)
+    }
+}
+
+impl From<png::DecodingError> for MeshLoadError {
+    fn from(err: png::DecodingError) -> Self {
+        MeshLoadError::ImageDecodeFailed(err)
     }
 }
 
@@ -111,15 +183,15 @@ fn attribute_bytes<'a>(
 ) -> Result<&'a [u8], MeshLoadError> {
     let doc = primitive.get(&semantic)
         .ok_or_else(|| MeshLoadError::NoSemantic { mesh: mesh_name(mesh), semantic })?;
-    Ok(access_bytes(buffers, &doc))
+    Ok(access_bytes(buffers, &doc.view()))
 }
 
-fn access_bytes<'a>(buffers: &'a [gltf::buffer::Data], accessor: &gltf::Accessor) -> &'a [u8] {
-    let buffer_i = accessor.view().buffer().index();
+fn access_bytes<'a>(buffers: &'a [gltf::buffer::Data], view: &gltf::buffer::View) -> &'a [u8] {
+    let buffer_i = view.buffer().index();
     let buffer = &buffers[buffer_i];
 
-    let start_i = accessor.view().offset();
-    let end_i = accessor.view().offset() + accessor.view().length();
+    let start_i = view.offset();
+    let end_i = view.offset() + view.length();
 
     &buffer[start_i..end_i]
 }
@@ -133,6 +205,15 @@ fn bytes_to_u16(bytes: &[u8]) -> &[u16] {
     }
 }
 
+fn bytes_to_point2(bytes: &[u8]) -> &[Point2<f32>] {
+    use ::std::mem;
+    unsafe {
+        ::std::slice::from_raw_parts(
+            bytes.as_ptr() as *const Point2<f32>,
+            bytes.len() / mem::size_of::<Point2<f32>>())
+    }
+}
+
 fn bytes_to_vector3(bytes: &[u8]) -> &[Vector3<f32>] {
     use ::std::mem;
     unsafe {
@@ -140,4 +221,21 @@ fn bytes_to_vector3(bytes: &[u8]) -> &[Vector3<f32>] {
             bytes.as_ptr() as *const Vector3<f32>,
             bytes.len() / mem::size_of::<Vector3<f32>>())
     }
+}
+
+fn load_png(bytes: &[u8]) -> Result<Texture, png::DecodingError> {
+    use png::Decoder;
+
+    let decoder = Decoder::new(bytes);
+
+    let (info, mut reader) = decoder.read_info()?;
+
+    let mut pixels = vec![0; info.buffer_size()];
+    reader.next_frame(&mut pixels)?;
+
+    Ok(Texture {
+        width: info.width,
+        height: info.height,
+        pixels,
+    })
 }

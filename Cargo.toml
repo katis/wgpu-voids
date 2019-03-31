@@ -10,6 +10,5 @@ wgpu = "0.2.1"
 shaderc = "0.3"
 err-derive = "0.1"
 gltf = "0.11"
-
-[features]
-default = ["wgpu/metal"]
+itertools = "0.8.0"
+png = "0.14.0"
