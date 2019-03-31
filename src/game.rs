@@ -4,6 +4,7 @@ use wgpu::winit::{
 
 use crate::assets::Assets;
 use crate::renderer::Renderer;
+use cgmath::{Vector3, Zero};
 
 pub fn run(title: &str, assets: &Assets) {
     let instance = wgpu::Instance::new();
@@ -61,8 +62,29 @@ pub fn run(title: &str, assets: &Assets) {
                 | WindowEvent::CloseRequested => {
                     running = false;
                 }
-                _ => {
+                WindowEvent::KeyboardInput {
+                    input: KeyboardInput {
+                        virtual_keycode: Some(key_code),
+                        state: ElementState::Pressed,
+                        ..
+                    },
+                    ..
+                } => {
+                    let mut movement: Vector3<f32> = Vector3::zero();
+                    match key_code {
+                        VirtualKeyCode::W => movement.y += 0.1,
+                        VirtualKeyCode::A => movement.x -= 0.1,
+                        VirtualKeyCode::S => movement.y -= 0.1,
+                        VirtualKeyCode::D => movement.x += 0.1,
+                        VirtualKeyCode::R => movement.z += 0.1,
+                        VirtualKeyCode::F => movement.z -= 0.1,
+                        _ => (),
+                    }
+                    if !movement.is_zero() {
+                        renderer.move_camera(&mut device, movement);
+                    }
                 }
+                _ => {}
             },
             _ => (),
         });

@@ -40,7 +40,7 @@ impl Camera {
         Matrix4::look_at(
             self.position,
             self.target,
-            -Vector3::unit_z(),
+            Vector3::unit_z(),
         )
     }
 
