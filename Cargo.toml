@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 cgmath = "0.17.0"
-wgpu = "0.2.1"
+wgpu = "0.2.2"
 shaderc = "0.3"
 err-derive = "0.1"
 gltf = "0.11"
