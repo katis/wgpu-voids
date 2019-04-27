@@ -52,21 +52,41 @@ impl Assets {
 }
 
 pub struct AssetStore<T> {
-    assets: HashMap<String, T>,
+    name_to_id: HashMap<String, AssetId<T>>,
+    assets: Vec<T>,
 }
 
 impl<T> AssetStore<T> {
     pub fn new() -> AssetStore<T> {
         AssetStore {
-            assets: HashMap::new(),
+            name_to_id: HashMap::new(),
+            assets: Vec::new(),
         }
     }
 
-    pub fn insert(&mut self, name: &str, asset: T) {
-        self.assets.insert(name.to_string(), asset);
+    pub fn insert(&mut self, name: &str, asset: T) -> AssetId<T> {
+        let id = AssetId(self.assets.len() as u32, PhantomData);
+        self.name_to_id.insert(name.to_string(), id);
+        self.assets.push(asset);
+        id
+    }
+
+    pub fn get_id(&self, name: &str) -> Option<AssetId<T>> {
+        self.name_to_id.get(name).map(|id| *id)
     }
 
     pub fn find(&self, asset_name: &str) -> Option<&T> {
-        self.assets.get(asset_name)
+        self.name_to_id.get(asset_name).map(|id| &self.assets[id.0 as usize])
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Hash)]
+pub struct AssetId<T>(u32, PhantomData<T>);
+
+impl<T> Copy for AssetId<T> {}
+
+impl<T> Clone for AssetId<T> {
+    fn clone(&self) -> Self {
+        AssetId(self.0, PhantomData)
     }
 }

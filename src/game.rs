@@ -5,6 +5,7 @@ use wgpu::winit::{
 use crate::assets::Assets;
 use crate::renderer::Renderer;
 use cgmath::{Vector3, Zero};
+use crate::model::Model;
 
 pub fn run(title: &str, assets: &Assets) {
     let instance = wgpu::Instance::new();
@@ -35,6 +36,9 @@ pub fn run(title: &str, assets: &Assets) {
     let mut swap_chain = device.create_swap_chain(&surface, &sc_desc);
 
     let mut renderer = Renderer::init(&sc_desc, &mut device, assets);
+    renderer.add_model_group(&mut device, "cube", assets.models.find("cube").unwrap());
+    renderer.add_model("cube", Model::new(Vector3::new(0.0, 0.0, 0.0)));
+    renderer.add_model("cube", Model::new(Vector3::new(0.0, 2.0, 0.0)));
 
     let mut running = true;
     while running {

@@ -1,5 +1,6 @@
 use cgmath::{Matrix3, Matrix4};
 use std::collections::Bound;
+use std::mem::size_of;
 use std::ops::Range;
 
 pub trait AsBytes {
@@ -30,23 +31,52 @@ pub struct GpuBuffer {
 }
 
 impl GpuBuffer {
-    pub fn new<T: 'static + Copy>(device: &wgpu::Device, buffer_usage: wgpu::BufferUsageFlags, contents: &[T]) -> GpuBuffer {
-        let buffer = device.create_buffer_mapped(contents.len(), buffer_usage).fill_from_slice(contents);
+    pub fn new<T: 'static + Copy>(
+        device: &wgpu::Device,
+        buffer_usage: wgpu::BufferUsageFlags,
+        contents: &[T],
+    ) -> GpuBuffer {
+        let buffer = device
+            .create_buffer_mapped(contents.len(), buffer_usage)
+            .fill_from_slice(contents);
         GpuBuffer {
             len: contents.len() as u32,
             buffer,
         }
     }
 
-    pub fn from_bytes(device: &wgpu::Device, buffer_usage: wgpu::BufferUsageFlags, bytes: &[u8]) -> GpuBuffer {
-        let buffer = device.create_buffer_mapped(bytes.len(), buffer_usage).fill_from_slice(bytes);
+    pub fn from_single<T: 'static + Copy>(
+        device: &wgpu::Device,
+        buffer_usage: wgpu::BufferUsageFlags,
+        item: T,
+    ) -> GpuBuffer {
+        let builder = device.create_buffer_mapped(1, buffer_usage);
+        builder.data[0] = item;
+        GpuBuffer {
+            len: size_of::<T>() as u32,
+            buffer: builder.finish(),
+        }
+    }
+
+    pub fn from_bytes(
+        device: &wgpu::Device,
+        buffer_usage: wgpu::BufferUsageFlags,
+        bytes: &[u8],
+    ) -> GpuBuffer {
+        let buffer = device
+            .create_buffer_mapped(bytes.len(), buffer_usage)
+            .fill_from_slice(bytes);
         GpuBuffer {
             len: bytes.len() as u32,
             buffer,
         }
     }
 
-    pub fn from_byte_slices(device: &wgpu::Device, buffer_usage: wgpu::BufferUsageFlags, bytes: &[&[u8]]) -> GpuBuffer {
+    pub fn from_byte_slices(
+        device: &wgpu::Device,
+        buffer_usage: wgpu::BufferUsageFlags,
+        bytes: &[&[u8]],
+    ) -> GpuBuffer {
         let len: usize = bytes.iter().map(|s| s.len()).sum();
         let builder = device.create_buffer_mapped(len, buffer_usage);
         let mut i: usize = 0;
@@ -58,6 +88,25 @@ impl GpuBuffer {
 
         GpuBuffer {
             len: len as u32,
+            buffer: builder.finish(),
+        }
+    }
+
+    pub fn from_transformed_slice<A, B: 'static + Copy>(
+        device: &wgpu::Device,
+        buffer_usage: wgpu::BufferUsageFlags,
+        items: &[A],
+        transform: impl Fn(&A) -> B,
+    ) -> GpuBuffer {
+        let builder: wgpu::CreateBufferMapped<'_, B> =
+            device.create_buffer_mapped(items.len(), buffer_usage);
+
+        for (i, item) in items.iter().map(transform).enumerate() {
+            builder.data[i] = item;
+        }
+
+        GpuBuffer {
+            len: items.len() as u32,
             buffer: builder.finish(),
         }
     }

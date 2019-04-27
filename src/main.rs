@@ -11,6 +11,7 @@ mod game;
 mod renderer;
 mod shader;
 mod model_data;
+mod model;
 mod conversions;
 
 fn main() {
